@@ -20,18 +20,6 @@ SEPARATOR = '─' * 100
 SEPARATOR_2 = '═' * 100
 TITLE = "{0}\n%s\n{0}"
 
-
-# For Unix-like systems. 
-#def wait_for_key(current, total):
-#    fd = sys.stdin.fileno()
-#    old = termios.tcgetattr(fd)
-#    try:
-#        tty.setraw(fd)
-#        key = sys.stdin.read(1)
-#    finally:
-#        termios.tcsetattr(fd, termios.TCSADRAIN, old)
-#    return key.lower() != 'q'
-
 def get_terminal_height():
     return shutil.get_terminal_size().lines - 3  # leave room for status bar
 
