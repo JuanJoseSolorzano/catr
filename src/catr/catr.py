@@ -5,11 +5,13 @@
 #=================================================================
 
 import sys
+import msvcrt
 from pygments import highlight
 from pygments.lexers import get_lexer_for_filename, TextLexer
 from pygments.formatters import TerminalTrueColorFormatter
-from os.path import exists,getsize,isfile,isdir
+from os.path import exists, getsize, isfile, isdir
 from colored import Fore, Style
+import shutil
 
 PINK =   Fore.rgb("100%", "0%", "60%") 
 VIOLET = Fore.rgb("30%", "10%", "100%")
@@ -18,19 +20,57 @@ SEPARATOR = '─' * 100
 SEPARATOR_2 = '═' * 100
 TITLE = "{0}\n%s\n{0}"
 
+
+# For Unix-like systems. 
+#def wait_for_key(current, total):
+#    fd = sys.stdin.fileno()
+#    old = termios.tcgetattr(fd)
+#    try:
+#        tty.setraw(fd)
+#        key = sys.stdin.read(1)
+#    finally:
+#        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+#    return key.lower() != 'q'
+
+def get_terminal_height():
+    return shutil.get_terminal_size().lines - 3  # leave room for status bar
+
+def wait_for_key(current, total):
+    """Display prompt and wait for Enter or Q key."""
+    prompt = f"\033[7m -- {current}/{total} lines | Press [Enter] to continue, [Q] to quit -- \033[0m"
+    print(prompt, end='', flush=True)
+    while True:
+        key = msvcrt.getwch()
+        if key in ('\r', '\n'):       # Enter
+            print('\r' + ' ' * len(prompt) + '\r', end='', flush=True)
+            return True
+        elif key.lower() == 'q':      # Quit
+            print()
+            return False
+
 def is_binary(file_path):
     with open(file_path, 'rb') as f:
         chunk = f.read(1024)
         return b'\x00' in chunk
 
-def bat_format(colorized_output,file_name,file_size):
+def bat_format(colorized_output, file_name, file_size):
     lines = colorized_output.splitlines()
     number_of_line = len(lines)
     name_colored = f"{PINK}{file_name} ({file_size} bytes) | {number_of_line} lines {Style.reset}"
-    print(TITLE.format(SEPARATOR)%"    %s" % name_colored)
+    print(TITLE.format(SEPARATOR) % "    %s" % name_colored)
+
     max_digits = len(str(len(lines)))
-    for line,content in enumerate(lines,start=1):
+    page_size = get_terminal_height()
+
+    for i, (line, content) in enumerate(enumerate(lines, start=1), start=1):
         print(f"{GRAY}{line:>{max_digits}} │ {Style.reset}{content}")
+        # Pause every page_size lines (except at the very last line)
+        if i % page_size == 0 and i < number_of_line:
+            if not wait_for_key(i, number_of_line):
+                print(f"\n{PINK}: < INTERRUPTED >{Style.reset}")
+                print(SEPARATOR_2)
+                return
+
     print(SEPARATOR)
     print(f"{PINK}: < END OF FILE >{Style.reset}")
     print(SEPARATOR_2)
@@ -47,7 +87,7 @@ def colorize_file(file_path):
     if is_binary(file_path):
         with open(file_path, 'rb') as file:
             code_text = file.readlines()
-        bat_format(code_text[0],f"{file_name} <BINARY>",getsize(file_path))
+        bat_format(code_text[0], f"{file_name} <BINARY>", getsize(file_path))
         return
     with open(file_path, 'r', encoding='utf-8') as file:
         code_text = file.read() 
@@ -58,15 +98,14 @@ def colorize_file(file_path):
     file_size = getsize(file_path)
     formatter = TerminalTrueColorFormatter(style='native')
     colored_output = highlight(code_text, lexer, formatter)
-    bat_format(colored_output,file_name,file_size)
+    bat_format(colored_output, file_name, file_size)
 
 def run():
-    # Capture command line arguments dynamically
     if len(sys.argv) != 2:
         print("Usage: batcat <file_path>", file=sys.stderr)
         sys.exit(1)
     target_file = sys.argv[1]
     colorize_file(target_file)
-# Keeps compatibility for running the file directly with: python cat_cli.py
+
 if __name__ == '__main__':
     run()
